@@ -1,0 +1,32 @@
+<Info>
+Description    Perform Normalization based on the "DESeq" package
+Author         Daniel Zhou
+Created        12/20/2017
+
+<Input>
+ 
+
+<Output>
+NormCount
+
+<Script>
+dat <- input.data
+des <- input.design
+
+
+#source("https://bioconductor.org/biocLite.R")
+#biocLite("DESeq2")
+#library(BiocParallel)
+library("DESeq2")
+
+#l <- length(colnames(des))
+#for (i in 1:l) {
+#  des[ , i] = factor(des[ , i], levels = levels(des[ , i]))
+#}
+
+colnames(des)
+
+
+dds<-DESeqDataSetFromMatrix(countData=round(dat), colData=des, design = ~ AECG)
+dds<-estimateSizeFactors(dds)
+NormCount <- counts(dds, normalized=TRUE)

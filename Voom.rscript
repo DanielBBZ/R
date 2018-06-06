@@ -1,0 +1,73 @@
+setwd("Z:/Users/Daniel/Test/TestProject/voom/voomDebug")
+library("limma")
+library("edgeR")
+##### Get parameters #####
+Sys.setlocale("LC_COLLATE", "C")
+parameters<-read.table("input/parameters.txt", sep="\t", header=T, row.names=1, as.is=T);
+parameterNames<-row.names(parameters)
+normalization  <- as.character(parameters["normalization", 1]) ##"none", "quantile", "TMM"
+model<-as.character(parameters["modelString", 1])
+classVariables<-as.character(parameters["classString", 1])
+exportDispersion<-as.logical(parameters["exportDispersionBool", 1])
+exportLog2CPM<-as.logical(parameters["exportLog2CPMBool", 1])
+exportWeights<-as.logical(parameters["exportWeightsBool", 1])
+### Load data matrix ###
+datamatrix<-as.matrix(read.table("input/datamatrix.txt", sep="\t", header=T, row.names=1));
+### load other tables ###
+colclassesVector <-unlist(strsplit(classVariables, ','))
+rep("character", length(colclassesVector))->colclassesSetting
+names(colclassesSetting)<-colclassesVector
+designTable<-read.table("input/design.txt", sep="\t", header=T, row.names=1, colClasses=colclassesSetting, na.strings="", quote="", comment.char=""); # this potiential will change column names
+contrastTable<-read.table("input/contrast.txt", sep="\t", header=F, as.is=T);
+contrastMatrix<-as.matrix(contrastTable)
+design<-model.matrix(as.formula(model), designTable)
+counts<-round(datamatrix)
+lib.size <- colSums(counts)
+v<-NULL
+if(normalization =="TMM"){
+dge <- DGEList(counts=counts)
+dge <- calcNormFactors(dge)
+v<-voom(dge,design)
+} else if(normalization == "quantile"){
+v <- voom(counts,design,normalize="quantile")
+} else if(normalization == "none"){
+v <- voom(counts,design)
+}
+### export log2CPM data ###
+if(exportLog2CPM){
+write.table(v$E, "output/cpmData.txt", sep="\t", quote=F, col.names=NA, row.names=T)
+}
+### export log2CPM weight matrix ###
+if(exportWeights){
+write.table(v$weights, "output/cpmWeightsData.txt", sep="\t", quote=F, col.names=NA, row.names=T)
+}
+fit <- lmFit(v,design)
+contrastCounts<-ncol(contrastMatrix)
+outTable<-list()
+for(i in 1:contrastCounts){
+fit2 <-contrasts.fit(fit, contrastMatrix[, i])
+fit2 <- eBayes(fit2)
+fitTable<-topTable(fit2, sort="none",n=Inf)
+outTable<-c(outTable, list(fitTable[, c(1, 3, 4)]))
+}
+outTable<-as.data.frame(outTable)
+### write output
+write.table(outTable, "output/fitTable.txt", sep="\t", quote=F, col.names=NA, row.names=T)
+### add dispersion information ###
+if(exportDispersion){
+tempy <- t(log2(t(counts + 0.5)/(lib.size + 1) * 1e+06))
+tempy <- normalizeBetweenArrays(tempy, method = normalization)
+fitDisp <- lmFit(tempy, design)
+sx <- fitDisp$Amean + mean(log2(lib.size + 1)) - log2(1e+06)
+sy <- sqrt(fitDisp$sigma)
+span <- 0.5
+allzero <- rowSums(counts) == 0
+if (any(allzero)) {
+sx <- sx[!allzero]
+sy <- sy[!allzero]
+}
+l <- lowess(sx, sy, f = span)
+dispTable<-cbind(sx, sy, l$x, l$y)
+colnames(dispTable)<-c("sx", "sy", "lx", "ly")
+write.table(dispTable, "output/dispTable.txt", sep="\t", quote=F, col.names=NA, row.names=T)
+}

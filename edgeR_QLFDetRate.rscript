@@ -1,0 +1,91 @@
+<Info>
+Description    Perform one-way edgeR analysis, with or without matched-pair or batch information; QLF test used, and DetRate part added for design matrix
+Author         Jason Lu, modified by Daniel Zhou at 04/24/2018
+Created        04/25/2018
+Requirement    Bioconductor version 2.11, or above; edgeR version 3.0.2 or above
+
+<Input>
+GroupColumn =
+CompareTo =
+
+NormalizationMethod = TMM
+PairColumn = none
+
+
+
+<Output>
+edgeR.output
+
+
+<Script>
+
+dat <- input.data
+des <- input.design
+
+GroupColumn = input.parameters[["GroupColumn"]]
+CompareTo = input.parameters[["CompareTo"]]
+PairColumn = input.parameters[["PairColumn"]]
+NormalizationMethod = input.parameters[["NormalizationMethod"]]
+
+#.libPaths("C:/Users/jasonlu/Documents/R/win-library/2.15-bioc-release")
+dat = round(dat)
+
+#rownames(des) = gsub("[^a-zA-Z0-9_.]","_",rownames(des))
+rownames(des) = make.names(rownames(des),unique=TRUE)
+des = des[colnames(dat),]
+
+if(suppressWarnings(!(require(edgeR)))){
+  cat("edgeR pkg is not found; installing bioconductor package edgeR...")
+  source("http://bioconductor.org/biocLite.R")
+  biocLite("edgeR")
+  require(edgeR)
+}
+
+
+if(!(GroupColumn%in%colnames(des))) stop("The grouping column (case-sensitive) NOT found! ","Column names available: ", colnames(des))
+if(!(CompareTo%in%des[,GroupColumn])) stop("The CompareTo value (case-sensitive) NOT found! ","Possible values are: ", unique(des[,GroupColumn]))
+if(!(NormalizationMethod%in%c("TMM","RLE","upperquartile"))) stop("The value of NormalizationMethod has to be one of TMM, RLE, upperquartile.")
+
+group = relevel(factor(des[,GroupColumn]),ref=CompareTo)
+lv = levels(group)
+
+y = DGEList(counts=dat, group=group)
+y <- calcNormFactors(y,method=NormalizationMethod)
+if(tolower(PairColumn) %in% c("","none")){
+   design <- model.matrix(~group)
+ }else{
+   if(!(PairColumn%in%colnames(des))) stop("The column (case-sensitive) defining matched pairs or batches is NOT found; use none if not applicable")
+   paircol = factor(des[,PairColumn])
+   design <- model.matrix(~group + paircol)
+}
+
+cdr <- scale(colMeans(dat > 0))
+design <- model.matrix(~ cdr + group)
+
+rownames(design) <- colnames(y)
+
+y <- estimateGLMCommonDisp(y,design)
+y <- estimateGLMTrendedDisp(y,design)
+y <- estimateGLMTagwiseDisp(y,design)
+fit <- glmQLFit(y,design)
+
+allres = NULL
+for(ii in 2:length(lv)){
+  qlf <- glmQLFTest(fit,coef=ii)
+  res = qlf$table
+  res$FDR = p.adjust(res$PValue,"BH")
+  colnames(res) = paste(lv[ii],".vs.",lv[1],".",colnames(res),sep="")
+  if(ii==2){
+    allres = res
+  }else{
+    allres = cbind(allres,res)
+  }
+}
+
+
+allres[is.na(allres)] = 0
+
+output.parameters = list( RawPValueColumns=grep("PValue",colnames(allres),value=TRUE),
+                          AdjustedPValueColumns=grep("FDR",colnames(allres),value=TRUE))
+
+edgeR.output = allres

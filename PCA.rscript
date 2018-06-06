@@ -1,0 +1,28 @@
+<Info>
+Description    Perform PCA in R and import PC table (first 3 PC), Loading table back to AS
+Author         Daniel Zhou
+Created        05/18/2018
+
+<Input>
+ 
+
+<Output>
+PCtable
+LoadingTable
+
+<Script>
+
+dat<-as.data.frame(input.data)
+
+#principal component analysis
+prin_comp <- prcomp(dat, scale. = T)
+
+#2D plot
+#plot(prin_comp$rotation[,"PC1"],prin_comp$rotation[,"PC2"], main="PCA plot", xlab="PC1", ylab="PC2")
+
+#output PCtable with first three principle components
+PCtable <- cbind(prin_comp$rotation[,"PC1"],prin_comp$rotation[,"PC2"],prin_comp$rotation[,"PC3"])
+
+#output PC loading table:
+LoadingTable <- cbind(prin_comp$sdev, (prin_comp$sdev)^2, (prin_comp$sdev)^2/sum((prin_comp$sdev)^2))
+colnames(LoadingTable) <- c("stdev", "variance", "proportion")

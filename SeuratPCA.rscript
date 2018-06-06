@@ -1,0 +1,27 @@
+<Info>
+Description    Perform PCA based on the seurat package
+Author         Daniel Zhou
+Created        12/22/2017
+
+<Input>
+ 
+
+<Output>
+NormCount
+
+<Script>
+dat <- input.data
+des <- input.design
+
+
+library(Seurat)
+library(dplyr)
+library(Matrix)
+
+
+colnames(des)
+
+
+dds<-DESeqDataSetFromMatrix(countData=round(dat), colData=des, design = ~ AECG)
+dds<-estimateSizeFactors(dds)
+NormCount <- counts(dds, normalized=TRUE)
