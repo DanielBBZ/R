@@ -1,5 +1,5 @@
 ### Load data matrix ###
-dat <- read.table("TsneScores.txt", sep="\t", header=T, row.names=1)
+dat <- read.table("tSNE_table.txt", sep="\t", header=T, row.names=1)
 
 
 Kmeanslow <- 3
